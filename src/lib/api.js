@@ -31,6 +31,61 @@ export async function getAllQuotes() {
     }
     return transformedQuotes;
   } catch (err) {
+    // const params = {
+    //   TableName: 'Quotes',
+    //   AttributeDefinitions: [
+    //     {
+    //       AttributeName: 'id',
+    //       AttributeType: 'S',
+    //     },
+    //   ],
+    //   KeySchema: [
+    //     {
+    //       AttributeName: 'id',
+    //       KeyType: 'HASH',
+    //     },
+    //   ],
+    //   ProvisionedThroughput: {
+    //     ReadCapacityUnits: 1,
+    //     WriteCapacityUnits: 1,
+    //   },
+    // };
+
+    // const params = {
+    //   TableName: 'Comments',
+    //   AttributeDefinitions: [
+    //     {
+    //       AttributeName: 'id',
+    //       AttributeType: 'S',
+    //     },
+    //     {
+    //       AttributeName: 'quoteId',
+    //       AttributeType: 'S',
+    //     },
+    //   ],
+    //   KeySchema: [
+    //     {
+    //       AttributeName: 'id',
+    //       KeyType: 'HASH',
+    //     },
+    //     {
+    //       AttributeName: 'quoteId',
+    //       KeyType: 'RANGE',
+    //     },
+    //   ],
+    //   ProvisionedThroughput: {
+    //     ReadCapacityUnits: 1,
+    //     WriteCapacityUnits: 1,
+    //   },
+    // };
+
+    // dynamodb.createTable(params, (err, data) => {
+    //   if (err) {
+    //     console.log(err);
+    //   } else {
+    //     console.log(data);
+    //   }
+    // });
     console.log(err);
     console.log('Could not scan quotes.');
   }
@@ -61,7 +116,6 @@ export async function addQuote(quoteData) {
   const { author, text } = quoteData;
   const randomNum = Math.floor(Math.random() * 1000);
   const id = 'data' + randomNum;
-
   const params = {
     TableName: 'Quotes',
     Item: { id, author, text },
@@ -98,24 +152,32 @@ export async function addComment(requestData) {
 }
 
 export async function getAllComments(quoteId) {
-  const response = await fetch(`${SERVER_DOMAIN}/comments/${quoteId}`);
+  const params = {
+    TableName: 'Comments',
+    ScanFilter: {
+      quoteId: {
+        ComparisonOperator: 'CONTAINS',
+        AttributeValueList: [`${quoteId}`],
+      },
+    },
+  };
 
-  const data = await response.json();
+  try {
+    const response = await docClient.scan(params).promise();
+    const data = response.Items;
+    const transformedComments = [];
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not get comments.');
+    for (const key in data) {
+      const commentObj = {
+        id: key,
+        ...data[key],
+      };
+      transformedComments.push(commentObj);
+    }
+
+    return transformedComments;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not get comments.');
   }
-
-  const transformedComments = [];
-
-  for (const key in data) {
-    const commentObj = {
-      id: key,
-      ...data[key],
-    };
-
-    transformedComments.push(commentObj);
-  }
-
-  return transformedComments;
 }

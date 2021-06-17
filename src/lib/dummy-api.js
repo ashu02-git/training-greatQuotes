@@ -29,7 +29,7 @@ export async function getSingleQuote(quoteId) {
     id: quoteId,
     author: 'test author2',
     text: 'test text2',
-  }; 
+  };
 
   return loadedQuote;
 }
@@ -68,6 +68,7 @@ export async function getAllComments(quoteId) {
 
     transformedComments.push(commentObj);
   }
+  console.log(transformedComments);
 
   return transformedComments;
 }
