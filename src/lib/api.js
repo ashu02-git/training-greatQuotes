@@ -16,12 +16,12 @@ export async function getAllQuotes() {
   };
 
   try {
-    const response = await docClient.scan(params).promise()
-    const data = response.Items
+    const response = await docClient.scan(params).promise();
+    const data = response.Items;
     console.log(data);
-  
+
     const transformedQuotes = [];
-  
+
     for (const key in data) {
       const quoteObj = {
         id: key,
@@ -30,44 +30,51 @@ export async function getAllQuotes() {
       transformedQuotes.push(quoteObj);
     }
     return transformedQuotes;
-  
   } catch (err) {
-    console.log('Could not fetch quotes.');
     console.log(err);
+    console.log('Could not scan quotes.');
   }
 }
 
 export async function getSingleQuote(quoteId) {
-  const response = await fetch(`${SERVER_DOMAIN}/quotes/${quoteId}`);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not fetch quote.');
-  }
-
-  const loadedQuote = {
-    id: quoteId,
-    ...data,
+  const params = {
+    TableName: 'Quotes',
+    Key: { id: quoteId },
   };
 
-  return loadedQuote;
+  try {
+    const response = await docClient.get(params).promise();
+    const data = response.Item;
+    const loadedQuote = {
+      id: quoteId,
+      ...data,
+    };
+
+    return loadedQuote;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not get quote.');
+  }
 }
 
 export async function addQuote(quoteData) {
-  const response = await fetch(`${SERVER_DOMAIN}/quotes`, {
-    method: 'POST',
-    body: JSON.stringify(quoteData),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  const data = await response.json();
+  const { author, text } = quoteData;
+  const randomNum = Math.floor(Math.random() * 1000);
+  const id = 'data' + randomNum;
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not create quote.');
+  const params = {
+    TableName: 'Quotes',
+    Item: { id, author, text },
+  };
+
+  try {
+    const data = await docClient.put(params).promise();
+    console.log(data);
+    return null;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not create quote.');
   }
-
-  return null;
 }
 
 export async function addComment(requestData) {
