@@ -1,25 +1,40 @@
-const SERVER_DOMAIN = 'http://localhost:5000';
+const AWS = require('aws-sdk');
+const SERVER_DOMAIN = 'http://localhost:3000';
 
-export async function getAllQuotes() {  
-  const response = await fetch(`${SERVER_DOMAIN}/quotes`);
-  const data = await response.json();
+AWS.config.update({
+  endpoint: 'http://localhost:8000',
+  region: 'us-west-2',
+  accessKeyId: 'fakeMyKeyId',
+  secretAccessKey: 'fakeSecretAccessKey',
+});
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not fetch quotes.');
+const docClient = new AWS.DynamoDB.DocumentClient();
+
+export async function getAllQuotes() {
+  const params = {
+    TableName: 'Quotes',
+  };
+
+  try {
+    const response = await docClient.scan(params).promise()
+    const data = response.Items
+    console.log(data);
+  
+    const transformedQuotes = [];
+  
+    for (const key in data) {
+      const quoteObj = {
+        id: key,
+        ...data[key],
+      };
+      transformedQuotes.push(quoteObj);
+    }
+    return transformedQuotes;
+  
+  } catch (err) {
+    console.log('Could not fetch quotes.');
+    console.log(err);
   }
-
-  const transformedQuotes = [];
-
-  for (const key in data) {
-    const quoteObj = {
-      id: key,
-      ...data[key],
-    };
-
-    transformedQuotes.push(quoteObj);
-  }
-
-  return transformedQuotes;
 }
 
 export async function getSingleQuote(quoteId) {

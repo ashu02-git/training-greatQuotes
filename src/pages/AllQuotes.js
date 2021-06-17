@@ -4,8 +4,8 @@ import QuoteList from '../components/quotes/QuoteList';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import NoQuotesFound from '../components/quotes/NoQuotesFound';
 import useHttp from '../hooks/use-http';
-// import { getAllQuotes } from '../lib/api';
-import { getAllQuotes } from '../lib/dummy-api';
+import { getAllQuotes } from '../lib/api';
+// import { getAllQuotes } from '../lib/dummy-api';
 
 const AllQuotes = () => {
   const {
