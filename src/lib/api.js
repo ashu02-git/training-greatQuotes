@@ -127,8 +127,9 @@ export async function getSingleQuote(quoteId) {
 
 export async function addQuote(quoteData) {
   const { author, text } = quoteData;
-  const randomNum = Math.floor(Math.random() * 1000);
-  const id = 'data' + randomNum;
+  // const randomNum = Math.floor(Math.random() * 1000);
+  const date = new Date();
+  const id = 'data' + date;
   const params = {
     TableName: 'Quotes',
     Item: { id, author, text },
@@ -145,10 +146,10 @@ export async function addQuote(quoteData) {
 }
 
 export async function addComment(requestData) {
-  const randomNum = Math.floor(Math.random() * 1000);
-  const id = 'id' + randomNum;
+  const date = new Date();
+  const id = 'id' + date;
   const quoteId = requestData.quoteId;
-  const name = 'name' + randomNum;
+  const name = 'name' + date;
   const text = requestData.commentData.text;
 
   const params = {
