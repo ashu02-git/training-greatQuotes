@@ -1,99 +1,196 @@
-const SERVER_DOMAIN = 'http://localhost:5000';
+const AWS = require('aws-sdk');
+// const SERVER_DOMAIN = 'http://localhost:3000';
 
-export async function getAllQuotes() {  
-  const response = await fetch(`${SERVER_DOMAIN}/quotes`);
-  const data = await response.json();
+AWS.config.update({
+  endpoint: 'http://localhost:8000',
+  region: 'us-west-2',
+  accessKeyId: 'fakeMyKeyId',
+  secretAccessKey: 'fakeSecretAccessKey',
+});
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not fetch quotes.');
+const dynamodb = new AWS.DynamoDB();
+const docClient = new AWS.DynamoDB.DocumentClient();
+
+export async function getAllQuotes() {
+  const params = {
+    TableName: 'Quotes',
+  };
+
+  try {
+    const response = await docClient.scan(params).promise();
+    const data = response.Items;
+    console.log(data);
+
+    const transformedQuotes = [];
+
+    for (const key in data) {
+      const quoteObj = {
+        id: key,
+        ...data[key],
+      };
+      transformedQuotes.push(quoteObj);
+    }
+    return transformedQuotes;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not scan quotes.');
+
+    // Check table exist
+    console.log('Check table exist');
+    const listTables = await dynamodb.listTables().promise();
+    if (listTables.TableNames.length === 0) {
+      // Create tables
+      const listParams = [
+        {
+          TableName: 'Quotes',
+          AttributeDefinitions: [
+            {
+              AttributeName: 'id',
+              AttributeType: 'S',
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: 'id',
+              KeyType: 'HASH',
+            },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1,
+          },
+        },
+        {
+          TableName: 'Comments',
+          AttributeDefinitions: [
+            {
+              AttributeName: 'id',
+              AttributeType: 'S',
+            },
+            {
+              AttributeName: 'quoteId',
+              AttributeType: 'S',
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: 'id',
+              KeyType: 'HASH',
+            },
+            {
+              AttributeName: 'quoteId',
+              KeyType: 'RANGE',
+            },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1,
+          },
+        },
+      ];
+
+      for (const paramsId in listParams) {
+        const params = listParams[paramsId];
+        dynamodb.createTable(params, (err, data) => {
+          if (err) {
+            console.log(err);
+          } else {
+            console.log(data);
+            console.log('Created Tables');
+          }
+        });
+      }
+      console.log('Created Tables');
+    }
   }
-
-  const transformedQuotes = [];
-
-  for (const key in data) {
-    const quoteObj = {
-      id: key,
-      ...data[key],
-    };
-
-    transformedQuotes.push(quoteObj);
-  }
-
-  return transformedQuotes;
 }
 
 export async function getSingleQuote(quoteId) {
-  const response = await fetch(`${SERVER_DOMAIN}/quotes/${quoteId}`);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not fetch quote.');
-  }
-
-  const loadedQuote = {
-    id: quoteId,
-    ...data,
+  const params = {
+    TableName: 'Quotes',
+    Key: { id: quoteId },
   };
 
-  return loadedQuote;
+  try {
+    const response = await docClient.get(params).promise();
+    const data = response.Item;
+    const loadedQuote = {
+      id: quoteId,
+      ...data,
+    };
+    return loadedQuote;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not get quote.');
+  }
 }
 
 export async function addQuote(quoteData) {
-  const response = await fetch(`${SERVER_DOMAIN}/quotes`, {
-    method: 'POST',
-    body: JSON.stringify(quoteData),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  const data = await response.json();
+  const { author, text } = quoteData;
+  const randomNum = Math.floor(Math.random() * 1000);
+  const id = 'data' + randomNum;
+  const params = {
+    TableName: 'Quotes',
+    Item: { id, author, text },
+  };
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not create quote.');
+  try {
+    const data = await docClient.put(params).promise();
+    console.log(data);
+    return null;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not create quote.');
   }
-
-  return null;
 }
 
 export async function addComment(requestData) {
-  const response = await fetch(
-    `${SERVER_DOMAIN}/comments/${requestData.quoteId}`,
-    {
-      method: 'POST',
-      body: JSON.stringify(requestData.commentData),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-  const data = await response.json();
+  const randomNum = Math.floor(Math.random() * 1000);
+  const id = 'id' + randomNum;
+  const quoteId = requestData.quoteId;
+  const name = 'name' + randomNum;
+  const text = requestData.commentData.text;
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not add comment.');
+  const params = {
+    TableName: 'Comments',
+    Item: { id, quoteId, name, text },
+  };
+
+  try {
+    const data = await docClient.put(params).promise();
+    return { commentId: data.name };
+  } catch (err) {
+    console.log(err);
+    console.log('Could not add comment.');
   }
-
-  return { commentId: data.name };
 }
 
 export async function getAllComments(quoteId) {
-  const response = await fetch(`${SERVER_DOMAIN}/comments/${quoteId}`);
+  const params = {
+    TableName: 'Comments',
+    ScanFilter: {
+      quoteId: {
+        ComparisonOperator: 'CONTAINS',
+        AttributeValueList: [`${quoteId}`],
+      },
+    },
+  };
 
-  const data = await response.json();
+  try {
+    const response = await docClient.scan(params).promise();
+    const data = response.Items;
+    const transformedComments = [];
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not get comments.');
+    for (const key in data) {
+      const commentObj = {
+        id: key,
+        ...data[key],
+      };
+      transformedComments.push(commentObj);
+    }
+    return transformedComments;
+  } catch (err) {
+    console.log(err);
+    console.log('Could not get comments.');
   }
-
-  const transformedComments = [];
-
-  for (const key in data) {
-    const commentObj = {
-      id: key,
-      ...data[key],
-    };
-
-    transformedComments.push(commentObj);
-  }
-
-  return transformedComments;
 }
