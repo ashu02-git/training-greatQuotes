@@ -1,5 +1,5 @@
 const AWS = require('aws-sdk');
-const SERVER_DOMAIN = 'http://localhost:3000';
+// const SERVER_DOMAIN = 'http://localhost:3000';
 
 AWS.config.update({
   endpoint: 'http://localhost:8000',
@@ -8,6 +8,7 @@ AWS.config.update({
   secretAccessKey: 'fakeSecretAccessKey',
 });
 
+const dynamodb = new AWS.DynamoDB();
 const docClient = new AWS.DynamoDB.DocumentClient();
 
 export async function getAllQuotes() {
@@ -31,63 +32,76 @@ export async function getAllQuotes() {
     }
     return transformedQuotes;
   } catch (err) {
-    // const params = {
-    //   TableName: 'Quotes',
-    //   AttributeDefinitions: [
-    //     {
-    //       AttributeName: 'id',
-    //       AttributeType: 'S',
-    //     },
-    //   ],
-    //   KeySchema: [
-    //     {
-    //       AttributeName: 'id',
-    //       KeyType: 'HASH',
-    //     },
-    //   ],
-    //   ProvisionedThroughput: {
-    //     ReadCapacityUnits: 1,
-    //     WriteCapacityUnits: 1,
-    //   },
-    // };
-
-    // const params = {
-    //   TableName: 'Comments',
-    //   AttributeDefinitions: [
-    //     {
-    //       AttributeName: 'id',
-    //       AttributeType: 'S',
-    //     },
-    //     {
-    //       AttributeName: 'quoteId',
-    //       AttributeType: 'S',
-    //     },
-    //   ],
-    //   KeySchema: [
-    //     {
-    //       AttributeName: 'id',
-    //       KeyType: 'HASH',
-    //     },
-    //     {
-    //       AttributeName: 'quoteId',
-    //       KeyType: 'RANGE',
-    //     },
-    //   ],
-    //   ProvisionedThroughput: {
-    //     ReadCapacityUnits: 1,
-    //     WriteCapacityUnits: 1,
-    //   },
-    // };
-
-    // dynamodb.createTable(params, (err, data) => {
-    //   if (err) {
-    //     console.log(err);
-    //   } else {
-    //     console.log(data);
-    //   }
-    // });
     console.log(err);
     console.log('Could not scan quotes.');
+
+    // Check table exist
+    console.log('Check table exist');
+    const listTables = await dynamodb.listTables().promise();
+    if (listTables.TableNames.length === 0) {
+      // Create tables
+      const listParams = [
+        {
+          TableName: 'Quotes',
+          AttributeDefinitions: [
+            {
+              AttributeName: 'id',
+              AttributeType: 'S',
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: 'id',
+              KeyType: 'HASH',
+            },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1,
+          },
+        },
+        {
+          TableName: 'Comments',
+          AttributeDefinitions: [
+            {
+              AttributeName: 'id',
+              AttributeType: 'S',
+            },
+            {
+              AttributeName: 'quoteId',
+              AttributeType: 'S',
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: 'id',
+              KeyType: 'HASH',
+            },
+            {
+              AttributeName: 'quoteId',
+              KeyType: 'RANGE',
+            },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1,
+          },
+        },
+      ];
+
+      for (const paramsId in listParams) {
+        const params = listParams[paramsId];
+        dynamodb.createTable(params, (err, data) => {
+          if (err) {
+            console.log(err);
+          } else {
+            console.log(data);
+            console.log('Created Tables');
+          }
+        });
+      }
+      console.log('Created Tables');
+    }
   }
 }
 
@@ -104,7 +118,6 @@ export async function getSingleQuote(quoteId) {
       id: quoteId,
       ...data,
     };
-
     return loadedQuote;
   } catch (err) {
     console.log(err);
@@ -132,23 +145,24 @@ export async function addQuote(quoteData) {
 }
 
 export async function addComment(requestData) {
-  const response = await fetch(
-    `${SERVER_DOMAIN}/comments/${requestData.quoteId}`,
-    {
-      method: 'POST',
-      body: JSON.stringify(requestData.commentData),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-  const data = await response.json();
+  const randomNum = Math.floor(Math.random() * 1000);
+  const id = 'id' + randomNum;
+  const quoteId = requestData.quoteId;
+  const name = 'name' + randomNum;
+  const text = requestData.commentData.text;
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Could not add comment.');
+  const params = {
+    TableName: 'Comments',
+    Item: { id, quoteId, name, text },
+  };
+
+  try {
+    const data = await docClient.put(params).promise();
+    return { commentId: data.name };
+  } catch (err) {
+    console.log(err);
+    console.log('Could not add comment.');
   }
-
-  return { commentId: data.name };
 }
 
 export async function getAllComments(quoteId) {
@@ -174,7 +188,6 @@ export async function getAllComments(quoteId) {
       };
       transformedComments.push(commentObj);
     }
-
     return transformedComments;
   } catch (err) {
     console.log(err);
